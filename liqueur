@@ -43,7 +43,6 @@ class Host:
 	self.name = name
 	self.jobs = 0
 	self.load = 0
-	self.down = 0
 	self.idle = 0
 
     def shutdown(self):
