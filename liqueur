@@ -62,8 +62,7 @@ class Host:
 		syslog("Waking %s up" % h)
 		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
 	    else:
-		syslog("%s has no mac-address. Attempting to wake by name" % h)
-		subprocess.Popen(['wol', '-i', ifaddr, self.name])
+		syslog("%s has no mac-address")
 
 hosts = {}
 
