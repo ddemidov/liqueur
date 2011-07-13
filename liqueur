@@ -3,25 +3,40 @@
 #----------------------------------------------------------------------------
 # Configuration
 #----------------------------------------------------------------------------
+# Nodes with load_avg above this will not be shutdown.
 load_tol = 0.4
+
+# Broadcast address for sending wake-on-lan packet.
 ifaddr   = "192.168.29.255"
+
+# MAC-addresses of computing nodes.
 macaddr  = {
     "node1" : "20:cf:30:e4:1c:e3",
     "node2" : "20:cf:30:4c:dc:6d",
     "node3" : "20:cf:30:e4:1e:99",
     "node4" : "20:cf:30:e4:1e:89",
     }
+
+# Interval in seconds between status updates.
 sleepfor = 60
+
+# For a node to be shutdown it has to be idle for this number of intervals
+# in a row. So if sleepfor == 60 and max_idle == 20, node has to be idle
+# for 20 minutes before it goes down.
 max_idle = 20
+
+# List of nodes is pulled from gridengine via qhost command. Liqueur only
+# manages nodes with names matching this pattern.
+node_name_pattern = 'node.*'
 
 #----------------------------------------------------------------------------
 # Code
 #----------------------------------------------------------------------------
 import re, subprocess, time
-from lxml import etree
+from lxml   import etree
 from syslog import syslog
 
-node_name = re.compile('node.*')
+node_name = re.compile(node_name_pattern)
 
 class Host:
     def __init__(self, name):
