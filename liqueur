@@ -46,15 +46,25 @@ class Host:
 	self.down = 0
 	self.idle = 0
 
-    def try_shutdown(self):
-	if int(self.jobs) == 0:
-	    self.idle += 1
-	    if self.idle > max_idle and float(self.load) < load_tol:
-		syslog("Shutting %s down" % self.name)
-		subprocess.Popen(['ssh', self.name, 'poweroff'])
-	else:
-	    self.idle = 0
-	    return False
+    def shutdown(self):
+	if self.load != '-':
+	    if int(self.jobs) == 0:
+		self.idle += 1
+		if self.idle > max_idle and float(self.load) < load_tol:
+		    syslog("Shutting %s down" % self.name)
+		    subprocess.Popen(['ssh', self.name, 'poweroff'])
+	    else:
+		self.idle = 0
+		return False
+
+    def wakeup(self):
+	if self.load == '-':
+	    if self.name in macaddr:
+		syslog("Waking %s up" % h)
+		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
+	    else:
+		syslog("%s has no mac-address. Attempting to wake by name" % h)
+		subprocess.Popen(['wol', '-i', ifaddr, self.name])
 
 hosts = {}
 
@@ -72,8 +82,7 @@ while True:
 	name = h.get('name')
 	if not node_name.match(name): continue
 
-	if name not in hosts:
-	    hosts[name] = Host(name)
+	if name not in hosts: hosts[name] = Host(name)
 
 	hosts[name].load = h.findtext("hostvalue[@name='load_avg']")
 	hosts[name].jobs = h.findtext("queue/queuevalue[@name='slots_used']")
@@ -81,14 +90,9 @@ while True:
     # Analyze queue status
     if pending_jobs > 0:
 	# Wake up!
-	for h in hosts:
-	    if (hosts[h].load == '-') and (h in macaddr):
-		syslog("Waking %s up" % h)
-		subprocess.Popen(['wol', '-i', ifaddr, macaddr[h]])
+	for h in hosts: hosts[h].wakeup()
     else:
 	# Shut someone down?
-	for h in hosts:
-	    if hosts[h].load != '-':
-		hosts[h].try_shutdown()
+	for h in hosts: hosts[h].shutdown()
 
     time.sleep(sleepfor)
