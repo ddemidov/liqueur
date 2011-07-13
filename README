@@ -1,0 +1,4 @@
+Liqueur is a small python script, powering nodes in Gridengine cluster up or
+down depending on queue status.
+
+The project is ispired by SPIRIT (http://www.ciul.ul.pt/~ATP/SPIRIT).

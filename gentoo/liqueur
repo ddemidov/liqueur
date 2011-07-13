@@ -1,0 +1,22 @@
+#!/sbin/runscript
+# Copyright 1999-2011 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+# $Header: $
+
+depend() {
+    need sgemasterd
+}
+
+start() {
+    ebegin "Starting liqueur"
+    start-stop-daemon --start --exec /opt/liqueur/liqueur \
+	--background --pidfile /var/run/liqueur.pid --make-pidfile
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping liqueur"
+    start-stop-daemon --stop --exec /opt/liqueur/liqueur \
+	--pidfile /var/run/liqueur.pid
+    eend $?
+}

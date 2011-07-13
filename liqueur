@@ -1,0 +1,79 @@
+#!/usr/bin/python
+
+#----------------------------------------------------------------------------
+# Configuration
+#----------------------------------------------------------------------------
+load_tol = 0.4
+ifaddr   = "192.168.29.255"
+macaddr  = {
+    "node1" : "20:cf:30:e4:1c:e3",
+    "node2" : "20:cf:30:4c:dc:6d",
+    "node3" : "20:cf:30:e4:1e:99",
+    "node4" : "20:cf:30:e4:1e:89",
+    }
+sleepfor = 60
+max_idle = 20
+
+#----------------------------------------------------------------------------
+# Code
+#----------------------------------------------------------------------------
+import re, subprocess, time
+from lxml import etree
+from syslog import syslog
+
+node_name = re.compile('node.*')
+
+class Host:
+    def __init__(self, name):
+	self.name = name
+	self.jobs = 0
+	self.load = 0
+	self.down = 0
+	self.idle = 0
+
+    def try_shutdown(self):
+	if int(self.jobs) == 0:
+	    self.idle += 1
+	    if self.idle > max_idle and float(self.load) < load_tol:
+		syslog("Shutting %s down" % self.name)
+		subprocess.Popen(['ssh', self.name, 'poweroff'])
+	else:
+	    self.idle = 0
+	    return False
+
+hosts = {}
+
+while True:
+    # Parse output of qstat and qhost
+    qhost = etree.fromstring(subprocess.check_output(['qhost', '-q', '-xml']))
+    qstat = etree.fromstring(subprocess.check_output(
+	['qstat', '-s', 'p', '-u', '*', '-xml']))
+
+    # Get number of pending jobs
+    pending_jobs = len(qstat.findall('job_info/job_list'))
+
+    # Get host list
+    for h in qhost.findall('host'):
+	name = h.get('name')
+	if not node_name.match(name): continue
+
+	if name not in hosts:
+	    hosts[name] = Host(name)
+
+	hosts[name].load = h.findtext("hostvalue[@name='load_avg']")
+	hosts[name].jobs = h.findtext("queue/queuevalue[@name='slots_used']")
+
+    # Analyze queue status
+    if pending_jobs > 0:
+	# Wake up!
+	for h in hosts:
+	    if (hosts[h].load == '-') and (h in macaddr):
+		syslog("Waking %s up" % h)
+		subprocess.Popen(['wol', '-i', ifaddr, macaddr[h]])
+    else:
+	# Shut someone down?
+	for h in hosts:
+	    if hosts[h].load != '-':
+		hosts[h].try_shutdown()
+
+    time.sleep(sleepfor)
