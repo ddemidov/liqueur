@@ -27,12 +27,12 @@ sleepfor = 60
 # for 20 minutes before it goes down.
 max_idle = 20
 
-# Liquer will try to wake up enough nodes to satisfy pending jobs requirements.
+# Liqueur will try to wake up enough nodes to satisfy pending jobs requirements.
 # This is the list of resources that should be met. Each resource is the name
 # of gridengine complex as in output of `qstat -F -xml`.
 managed_resources = ['cores', 'tesla_2070']
 
-# Returns True if node with a given name should be managed by Liquer.
+# Returns True if node with a given name should be managed by Liqueur.
 def managed_node(hostname):
     # Example with exceptions: node01 and node02 should not be managed.
     #   m = re.match('node(?P<num>\d+)', hostname)
