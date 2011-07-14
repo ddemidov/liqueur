@@ -44,7 +44,21 @@ class Host:
 	self.jobs = 0
 	self.load = 0
 	self.idle = 0
+	self.cpus = 0
 
+    # Wakes the node up. Returns number of processors on the node.
+    def wakeup(self):
+	if self.load == '-':
+	    if self.name in macaddr:
+		syslog("Waking %s up" % h)
+		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
+		self.idle = 0
+		return int(self.cpus)
+	    else:
+		syslog("%s has no mac-address")
+	return 0
+
+    # Shuts the node down.
     def shutdown(self):
 	if self.load != '-':
 	    if int(self.jobs) == 0:
@@ -54,15 +68,6 @@ class Host:
 		    subprocess.Popen(['ssh', self.name, 'poweroff'])
 	    else:
 		self.idle = 0
-		return False
-
-    def wakeup(self):
-	if self.load == '-':
-	    if self.name in macaddr:
-		syslog("Waking %s up" % h)
-		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
-	    else:
-		syslog("%s has no mac-address")
 
 hosts = {}
 
@@ -72,8 +77,10 @@ while True:
     qstat = etree.fromstring(subprocess.check_output(
 	['qstat', '-s', 'p', '-u', '*', '-xml']))
 
-    # Get number of pending jobs
-    pending_jobs = len(qstat.findall('job_info/job_list'))
+    # Get number of pending slots
+    pending_slots = sum([int(j.findtext('slots'))
+	for j in qstat.findall('job_info/job_list')
+	])
 
     # Get host list
     for h in qhost.findall('host'):
@@ -84,11 +91,14 @@ while True:
 
 	hosts[name].load = h.findtext("hostvalue[@name='load_avg']")
 	hosts[name].jobs = h.findtext("queue/queuevalue[@name='slots_used']")
+	hosts[name].cpus = h.findtext("hostvalue[@name='num_proc']")
 
     # Analyze queue status
-    if pending_jobs > 0:
+    if pending_slots > 0:
 	# Wake up!
-	for h in hosts: hosts[h].wakeup()
+	for h in hosts:
+	    pending_slots -= hosts[h].wakeup()
+	    if pending_slots <= 0: break
     else:
 	# Shut someone down?
 	for h in hosts: hosts[h].shutdown()
