@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import re
+
 #----------------------------------------------------------------------------
 # Configuration
 #----------------------------------------------------------------------------
@@ -25,18 +27,22 @@ sleepfor = 60
 # for 20 minutes before it goes down.
 max_idle = 20
 
-# List of nodes is pulled from gridengine via qhost command. Liqueur only
-# manages nodes with names matching this pattern.
-node_name_pattern = 'node.*'
+# Returns True if node with a given name should be managed by Liquer
+def managed_node(hostname):
+    # Example with exceptions: node01 and node02 should not be managed.
+    #   exc_list = ['01', '02']
+    #   m = re.match('node(?P<num>\d+)', hostname)
+    #   return m and m.group('num') not in exc_list
+
+    # Simple matching:
+    return re.match('node.*', hostname)
 
 #----------------------------------------------------------------------------
 # Code
 #----------------------------------------------------------------------------
-import re, subprocess, time
+import subprocess, time
 from lxml   import etree
 from syslog import syslog
-
-node_name = re.compile(node_name_pattern)
 
 class Host:
     def __init__(self, name):
@@ -85,7 +91,7 @@ while True:
     # Get host list
     for h in qhost.findall('host'):
 	name = h.get('name')
-	if not node_name.match(name): continue
+	if not managed_node(name): continue
 
 	if name not in hosts: hosts[name] = Host(name)
 
