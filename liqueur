@@ -27,12 +27,16 @@ sleepfor = 60
 # for 20 minutes before it goes down.
 max_idle = 20
 
-# Returns True if node with a given name should be managed by Liquer
+# Liquer will try to wake up enough nodes to satisfy pending jobs requirements.
+# This is the list of resources that should be met. Each resource is the name
+# of gridengine complex as in output of `qstat -F -xml`.
+managed_resources = ['cores', 'tesla_2070']
+
+# Returns True if node with a given name should be managed by Liquer.
 def managed_node(hostname):
     # Example with exceptions: node01 and node02 should not be managed.
-    #   exc_list = ['01', '02']
     #   m = re.match('node(?P<num>\d+)', hostname)
-    #   return m and m.group('num') not in exc_list
+    #   return m and m.group('num') not in ['01', '02']
 
     # Simple matching:
     return re.match('node.*', hostname)
@@ -50,19 +54,20 @@ class Host:
 	self.jobs = 0
 	self.load = 0
 	self.idle = 0
-	self.cpus = 0
 
-    # Wakes the node up. Returns number of processors on the node.
+	self.resource = {}
+
+    # Tries to wake the node up.
     def wakeup(self):
 	if self.load == '-':
 	    if self.name in macaddr:
 		syslog("Waking %s up" % h)
 		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
 		self.idle = 0
-		return int(self.cpus)
+		return True
 	    else:
 		syslog("%s has no mac-address")
-	return 0
+	return False
 
     # Shuts the node down.
     def shutdown(self):
@@ -79,14 +84,22 @@ hosts = {}
 
 while True:
     # Parse output of qstat and qhost
-    qhost = etree.fromstring(subprocess.check_output(['qhost', '-q', '-xml']))
+    qhost = etree.fromstring(subprocess.check_output(
+	['qhost', '-q', '-F', '-xml']))
     qstat = etree.fromstring(subprocess.check_output(
-	['qstat', '-s', 'p', '-u', '*', '-xml']))
+	['qstat', '-s', 'p', '-r', '-u', '*', '-xml']))
 
-    # Get number of pending slots
-    pending_slots = sum([int(j.findtext('slots'))
-	for j in qstat.findall('job_info/job_list')
-	])
+    # Get resource requests for pending jobs
+    require = {"slots" : 0}
+    for r in managed_resources: require[r] = 0
+
+    for job in qstat.findall('job_info/job_list'):
+	slots = int(job.findtext("slots"))
+	require["slots"] += slots
+
+	for r in managed_resources:
+	    require[r] += slots * float(
+		    job.findtext("hard_request[@name='" + r + "']") or 0)
 
     # Get host list
     for h in qhost.findall('host'):
@@ -97,14 +110,22 @@ while True:
 
 	hosts[name].load = h.findtext("hostvalue[@name='load_avg']")
 	hosts[name].jobs = h.findtext("queue/queuevalue[@name='slots_used']")
-	hosts[name].cpus = h.findtext("hostvalue[@name='num_proc']")
+
+	# Get list of host resources
+	hosts[name].resource["slots"] = int(
+		h.findtext("hostvalue[@name='num_proc']"))
+	for r in managed_resources:
+	    hosts[name].resource[r] = float(
+		    h.findtext("resourcevalue[@name='" + r + "']"))
 
     # Analyze queue status
-    if pending_slots > 0:
+    if require["slots"] > 0:
 	# Wake up!
 	for h in hosts:
-	    pending_slots -= hosts[h].wakeup()
-	    if pending_slots <= 0: break
+	    if hosts[h].wakeup():
+		for r in ["slots"] + managed_resources:
+		    require[r] -= hosts[h].resource[r]
+		if max(require.values()) <= 0: break
     else:
 	# Shut someone down?
 	for h in hosts: hosts[h].shutdown()
