@@ -30,17 +30,6 @@ import re
 # Nodes with load_avg above this will not be shutdown.
 load_tol = 0.4
 
-# Broadcast address for sending wake-on-lan packet.
-ifaddr   = "192.168.29.255"
-
-# MAC-addresses of computing nodes.
-macaddr  = {
-    "node1" : "20:cf:30:e4:1c:e3",
-    "node2" : "20:cf:30:4c:dc:6d",
-    "node3" : "20:cf:30:e4:1e:99",
-    "node4" : "20:cf:30:e4:1e:89",
-    }
-
 # Interval in seconds between status updates.
 sleepfor = 60
 
@@ -60,6 +49,9 @@ max_idle = 20
 # of gridengine complex as in output of `qstat -F -xml`.
 managed_resources = ['cores', 'tesla_2070']
 
+# Should Liqueur output debug info to syslog?
+debug = True
+
 # Returns True if node with a given name should be managed by Liqueur.
 def managed_node(hostname):
     # Example with exceptions: node01 and node02 should not be managed.
@@ -69,9 +61,28 @@ def managed_node(hostname):
     # Simple matching:
     return re.match('node.*', hostname)
 
+#----------------------------------------------------------------------------
+# How to wake a node up?
+#----------------------------------------------------------------------------
+# Broadcast address for sending wake-on-lan packet.
+ifaddr = "192.168.29.255"
 
-# Should Liqueur output debug info to syslog?
-debug = True
+# MAC-addresses of computing nodes.
+macaddr = {
+    "node1" : "20:cf:30:e4:1c:e3",
+    "node2" : "20:cf:30:4c:dc:6d",
+    "node3" : "20:cf:30:e4:1e:99",
+    "node4" : "20:cf:30:e4:1e:89",
+    }
+
+def wakeup_node(name):
+    subprocess.Popen(['wol', '-i', ifaddr, macaddr[name]])
+
+#----------------------------------------------------------------------------
+# How to shut a node down?
+#----------------------------------------------------------------------------
+def shutdown_node(name):
+    subprocess.Popen(['ssh', name, 'poweroff'])
 
 #----------------------------------------------------------------------------
 # Code
@@ -99,7 +110,7 @@ class Host:
 	if self.down():
 	    if self.name in macaddr:
 		syslog("Waking %s up" % h)
-		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
+		wakeup_node(self.name)
 		self.idle = 0
 		time.sleep(wake_time)
 		return True
@@ -130,7 +141,7 @@ class Host:
 	    if slots == 0:
 		# Safely shutdown
 		syslog("Shutting %s down" % self.name)
-		subprocess.Popen(['ssh', self.name, 'poweroff'])
+		shutdown_node(self.name)
 		time.sleep(wake_time)
 	    else:
 		self.idle = 0
