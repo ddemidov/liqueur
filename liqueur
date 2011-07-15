@@ -22,6 +22,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+#----------------------------------------------------------------------------
+# Liqueur behaves as a gridengine load sensor. It should be configured to run
+# on a master node of a cluster only.
+#----------------------------------------------------------------------------
+
 import re
 
 #----------------------------------------------------------------------------
@@ -46,8 +51,9 @@ max_idle = 20
 # of gridengine complex as in output of `qstat -F -xml`.
 managed_resources = ['cores', 'tesla_2070']
 
-# Should Liqueur output debug info to syslog?
-debug = True
+# Should Liqueur report idle times for nodes to gridengine?
+# If yes, then the complex 'idle' should be created beforehand.
+report_idle = True
 
 # Returns True if node with a given name should be managed by Liqueur.
 def managed_node(hostname):
@@ -198,10 +204,8 @@ while True:
 	# Get list of host queues
 	hosts[name].queues = [q.get("name") for q in h.findall("queue")]
 
-	debug and syslog("%s: jobs(%s) load(%s) idle(%s)" % (
-	    name, hosts[name].jobs, hosts[name].load, hosts[name].idle))
-
-	print "%s:idle:%s" % (name, hosts[name].idle)
+	if report_idle:
+	    print "%s:idle:%s" % (name, hosts[name].idle)
 
     # Analyze queue status
     if require["slots"] > 0:
