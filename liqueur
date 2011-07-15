@@ -44,6 +44,12 @@ macaddr  = {
 # Interval in seconds between status updates.
 sleepfor = 60
 
+# Interval between node wakeups
+wake_time = 5
+
+# Shutdown time
+shut_time = 10
+
 # For a node to be shutdown it has to be idle for this number of intervals
 # in a row. So if sleepfor == 60 and max_idle == 20, node has to be idle
 # for 20 minutes before it goes down.
@@ -63,6 +69,7 @@ def managed_node(hostname):
     # Simple matching:
     return re.match('node.*', hostname)
 
+
 # Should Liqueur output debug info to syslog?
 debug = True
 
@@ -73,6 +80,7 @@ import subprocess, time
 from lxml   import etree
 from syslog import syslog
 
+# Holds state of a node.
 class Host:
     def __init__(self, name):
 	self.name = name
@@ -81,6 +89,7 @@ class Host:
 	self.idle = 0
 
 	self.resource = {}
+	self.queues   = []
 
     def down(self):
 	return self.load == '-'
@@ -92,6 +101,7 @@ class Host:
 		syslog("Waking %s up" % h)
 		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
 		self.idle = 0
+		time.sleep(wake_time)
 		return True
 	    else:
 		syslog("%s has no mac-address")
@@ -99,14 +109,35 @@ class Host:
 
     # Shuts the node down.
     def shutdown(self):
-	if not self.down():
-	    if int(self.jobs) == 0:
-		self.idle += 1
-		if self.idle > max_idle and float(self.load) < load_tol:
-		    syslog("Shutting %s down" % self.name)
-		    subprocess.Popen(['ssh', self.name, 'poweroff'])
+	if self.down() or int(self.jobs) != 0:
+	    self.idle = 0
+	    return
+
+	self.idle += 1
+
+	if self.idle > max_idle and float(self.load) < load_tol:
+	    # Disable all queues on the node
+	    for q in self.queues:
+		subprocess.Popen(['qmod', '-d', q + "@" + self.name])
+
+	    # Check that no jobs sneaked into the host
+	    qhost = etree.fromstring(subprocess.check_output(
+		['qhost', '-h', self.name, '-q', '-xml']))
+
+	    slots = sum([int(s.text) for s in qhost.findall(
+		"host/queue/queuevalue[@name='slots_used']") or 0])
+
+	    if slots == 0:
+		# Safely shutdown
+		syslog("Shutting %s down" % self.name)
+		subprocess.Popen(['ssh', self.name, 'poweroff'])
+		time.sleep(wake_time)
 	    else:
 		self.idle = 0
+
+	    # Re-enable queues
+	    for q in self.queues:
+		subprocess.Popen(['qmod', '-e', q + "@" + self.name])
 
 hosts = {}
 
@@ -149,6 +180,9 @@ while True:
 	for r in managed_resources:
 	    hosts[name].resource[r] = float(
 		    h.findtext("resourcevalue[@name='" + r + "']"))
+
+	# Get list of host queues
+	hosts[name].queues = [q.get("name") for q in h.findall("queue")]
 
 	debug and syslog("%s: jobs(%s) load(%s) idle(%s)" % (
 	    name, hosts[name].jobs, hosts[name].load, hosts[name].idle))
