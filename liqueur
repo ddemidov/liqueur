@@ -188,10 +188,6 @@ while True:
 	if name not in hosts: hosts[name] = Host(name)
 
 	hosts[name].load = h.findtext("hostvalue[@name='load_avg']")
-
-	if hosts[name].down():
-	    hosts[name].idle = 0
-
 	hosts[name].jobs = h.findtext("queue/queuevalue[@name='slots_used']")
 
 	# Get list of host resources
