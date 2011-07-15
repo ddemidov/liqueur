@@ -125,7 +125,7 @@ class Host:
 		['qhost', '-h', self.name, '-q', '-xml']))
 
 	    slots = sum([int(s.text) for s in qhost.findall(
-		"host/queue/queuevalue[@name='slots_used']") or 0])
+		"host/queue/queuevalue[@name='slots_used']")])
 
 	    if slots == 0:
 		# Safely shutdown
