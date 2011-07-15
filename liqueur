@@ -76,7 +76,10 @@ macaddr = {
     }
 
 def wakeup_node(name):
-    subprocess.Popen(['wol', '-i', ifaddr, macaddr[name]])
+    if self.name in macaddr:
+	subprocess.Popen(['wol', '-i', ifaddr, macaddr[name]])
+    else:
+	syslog("%s has no mac-address")
 
 #----------------------------------------------------------------------------
 # How to shut a node down?
@@ -108,15 +111,13 @@ class Host:
     # Tries to wake the node up.
     def wakeup(self):
 	if self.down():
-	    if self.name in macaddr:
-		syslog("Waking %s up" % h)
-		wakeup_node(self.name)
-		self.idle = 0
-		time.sleep(wake_time)
-		return True
-	    else:
-		syslog("%s has no mac-address")
-	return False
+	    syslog("Waking %s up" % h)
+	    wakeup_node(self.name)
+	    self.idle = 0
+	    time.sleep(wake_time)
+	    return True
+	else:
+	    return False
 
     # Shuts the node down.
     def shutdown(self):
