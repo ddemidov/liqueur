@@ -60,9 +60,12 @@ class Host:
 
 	self.resource = {}
 
+    def down(self):
+	return self.load == '-'
+
     # Tries to wake the node up.
     def wakeup(self):
-	if self.load == '-':
+	if self.down():
 	    if self.name in macaddr:
 		syslog("Waking %s up" % h)
 		subprocess.Popen(['wol', '-i', ifaddr, macaddr[self.name]])
@@ -74,7 +77,7 @@ class Host:
 
     # Shuts the node down.
     def shutdown(self):
-	if self.load != '-':
+	if not self.down():
 	    if int(self.jobs) == 0:
 		self.idle += 1
 		if self.idle > max_idle and float(self.load) < load_tol:
@@ -112,6 +115,10 @@ while True:
 	if name not in hosts: hosts[name] = Host(name)
 
 	hosts[name].load = h.findtext("hostvalue[@name='load_avg']")
+
+	if hosts[name].down():
+	    hosts[name].idle = 0
+
 	hosts[name].jobs = h.findtext("queue/queuevalue[@name='slots_used']")
 
 	# Get list of host resources
