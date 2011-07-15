@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
 # Copyright (c) 2011 Denis Demidov
 # 
@@ -30,18 +30,15 @@ import re
 # Nodes with load_avg above this will not be shutdown.
 load_tol = 0.4
 
-# Interval in seconds between status updates.
-sleepfor = 60
-
 # Interval between node wakeups
 wake_time = 5
 
 # Shutdown time
-shut_time = 10
+shut_time = 5
 
 # For a node to be shutdown it has to be idle for this number of intervals
-# in a row. So if sleepfor == 60 and max_idle == 20, node has to be idle
-# for 20 minutes before it goes down.
+# in a row. So if gridengine's load_report_time parameter equals 00:01:00 and
+# max_idle == 20, node has to be idle for 20 minutes before it goes down.
 max_idle = 20
 
 # Liqueur will try to wake up enough nodes to satisfy pending jobs requirements.
@@ -90,7 +87,7 @@ def shutdown_node(name):
 #----------------------------------------------------------------------------
 # Code
 #----------------------------------------------------------------------------
-import subprocess, time
+import subprocess, time, sys
 from lxml   import etree
 from syslog import syslog
 
@@ -154,6 +151,11 @@ class Host:
 hosts = {}
 
 while True:
+    if raw_input() == "quit":
+	sys.exit(1)
+
+    print "begin"
+
     # Parse output of qstat and qhost
     qhost = etree.fromstring(subprocess.check_output(
 	['qhost', '-q', '-F', '-xml']))
@@ -199,6 +201,8 @@ while True:
 	debug and syslog("%s: jobs(%s) load(%s) idle(%s)" % (
 	    name, hosts[name].jobs, hosts[name].load, hosts[name].idle))
 
+	print "%s:idle:%s" % (name, hosts[name].idle)
+
     # Analyze queue status
     if require["slots"] > 0:
 	# Wake up!
@@ -211,4 +215,4 @@ while True:
 	# Shut someone down?
 	for h in hosts: hosts[h].shutdown()
 
-    time.sleep(sleepfor)
+    print "end"
