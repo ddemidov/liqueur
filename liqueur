@@ -79,7 +79,7 @@ macaddr = {
     }
 
 def wakeup_node(name):
-    if self.name in macaddr:
+    if name in macaddr:
 	subprocess.Popen(['wol', '-i', ifaddr, macaddr[name]])
     else:
 	syslog("%s has no mac-address")
