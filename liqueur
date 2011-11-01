@@ -156,6 +156,10 @@ class Host:
 
 hosts = {}
 
+# We are starting as sge load sensor.
+# So first, let things settle a bit:
+time.sleep(5)
+
 while True:
     if raw_input() == "quit":
 	sys.exit(1)
